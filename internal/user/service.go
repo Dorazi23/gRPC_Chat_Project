@@ -121,11 +121,54 @@ func (s *service) SignUp(ctx context.Context, username, name, phone, email, pass
 // ----------------------
 
 func (s *service) CheckUsername(ctx context.Context, username string) (bool, error) {
-	return false, errors.New("not implemented yet")
+	if username == "" {
+		return false, errors.New("username is empty")
+	}
+
+	const q = `
+		SELECT 1
+		FROM users
+		WHERE username = $1
+		LIMIT 1
+	`
+
+	var dummy int
+	err := s.db.QueryRow(ctx, q, username).Scan(&dummy)
+	if err != nil {
+		// 아무 행도 없으면 → 사용 가능
+		if errors.Is(err, pgx.ErrNoRows) {
+			return true, nil
+		}
+		// 그 외는 DB 에러
+		return false, err
+	}
+
+	// 행이 하나라도 있으면 이미 존재 → 사용 불가
+	return false, nil
 }
 
 func (s *service) CheckEmail(ctx context.Context, email string) (bool, error) {
-	return false, errors.New("not implemented yet")
+	if email == "" {
+		return false, errors.New("email is empty")
+	}
+
+	const q = `
+		SELECT 1
+		FROM users
+		WHERE email = $1
+		LIMIT 1
+	`
+
+	var dummy int
+	err := s.db.QueryRow(ctx, q, email).Scan(&dummy)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return true, nil // 사용 가능
+		}
+		return false, err
+	}
+
+	return false, nil // 이미 존재
 }
 
 func (s *service) RequestPhoneVerification(ctx context.Context, phone string) (string, error) {
