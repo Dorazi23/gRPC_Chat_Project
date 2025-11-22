@@ -51,4 +51,10 @@ func Init() {
 	}
 
 	fmt.Println("✅ Connected to Supabase PostgreSQL!")
+
+	// ⭐️ 자동 스키마 마이그레이션 적용 (추가된 로직) ⭐️
+	// internal/db/postgres.go에 정의된 ApplyMigrations 함수를 호출합니다.
+	if err := ApplyMigrations(context.Background(), Pool); err != nil {
+		log.Fatalf("Failed to apply DB migrations: %v", err)
+	}
 }
