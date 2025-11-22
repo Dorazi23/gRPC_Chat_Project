@@ -1,0 +1,144 @@
+syntax = "proto3";
+
+package user.v1;
+
+option go_package = "github.com/Dorazi23/gRPC_Chat_Project/pkg/userpb;userpb";
+
+import "google/protobuf/timestamp.proto"; 
+
+
+// ====== 유저 정보 ======
+message User {
+  string id = 1;               // 내부 유저 ID (UUID 등)
+  string username = 2;         // 로그인 아이디
+  string name = 3;             // 실명
+  string phone = 4;            // 전화번호
+  bool phone_verified = 5;     // 전화번호 인증 여부
+  string email = 6;            // 이메일
+  string nickname = 7;         // 닉네임 (가입 직후 임시닉네임)
+  string avatar_url = 8;       // 프로필 이미지 URL
+  int64 created_at = 9;        // 생성 시각 (unix timestamp)
+}
+
+// ====== 중복 체크 / 전화번호 인증 ======
+message CheckUsernameRequest {
+  string username = 1;
+}
+message CheckUsernameResponse {
+  bool available = 1;
+}
+
+message CheckEmailRequest {
+  string email = 1;
+}
+message CheckEmailResponse {
+  bool available = 1;
+}
+
+message RequestPhoneVerificationRequest {
+  string phone = 1;
+}
+message RequestPhoneVerificationResponse {
+  string verification_id = 1;
+}
+
+message VerifyPhoneRequest {
+  string verification_id = 1;
+  string code = 2;
+}
+message VerifyPhoneResponse {
+  bool success = 1;
+}
+
+// ====== 회원가입 / 로그인 ======
+message SignUpRequest {
+  string username = 1;  // 아이디
+  string name = 2;      // 실명
+  string phone = 3;
+  string email = 4;
+  string password = 5;  // 비밀번호 (재입력은 프론트에서 확인 후 이 값만 보냄)
+}
+
+message SignUpResponse {
+  User user = 1;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string access_token = 1;   // JWT 같은 토큰
+  string refresh_token = 2;  // 나중에 안 쓰면 비워둬도 됨
+  User user = 3;
+}
+
+// 나중에 카카오/네이버용 (추후 구현 할 떄 사용)
+enum SocialProvider {
+  SOCIAL_PROVIDER_UNSPECIFIED = 0;
+  SOCIAL_PROVIDER_KAKAO = 1;
+  SOCIAL_PROVIDER_NAVER = 2;
+}
+
+message SocialLoginRequest {
+  SocialProvider provider = 1;
+  string access_token = 2; // 카카오/네이버에서 받은 토큰
+}
+
+message SocialLoginResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  User user = 3;
+}
+
+// ====== 프로필 ======
+message GetProfileRequest {
+  string user_id = 1; // 대부분은 토큰에서 가져오고, 필요시 명시적으로도 가능
+}
+message GetProfileResponse {
+  User user = 1;
+}
+
+message UpdateProfileRequest {
+  string name = 1;
+  string nickname = 2;
+  string phone = 3;
+  string email = 4;
+}
+message UpdateProfileResponse {
+  User user = 1;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+message ChangePasswordResponse {}
+
+message UpdateAvatarRequest {
+  string avatar_url = 1;
+}
+message UpdateAvatarResponse {
+  User user = 1;
+}
+
+// ====== 서비스 정의 (명세같은 역할)======
+service UserService {
+  // 중복/인증
+  rpc CheckUsername (CheckUsernameRequest) returns (CheckUsernameResponse);
+  rpc CheckEmail (CheckEmailRequest) returns (CheckEmailResponse);
+  rpc RequestPhoneVerification (RequestPhoneVerificationRequest) returns (RequestPhoneVerificationResponse);
+  rpc VerifyPhone (VerifyPhoneRequest) returns (VerifyPhoneResponse);
+
+  // 회원가입/로그인
+  rpc SignUp (SignUpRequest) returns (SignUpResponse);
+  rpc Login (LoginRequest) returns (LoginResponse);
+  rpc SocialLogin (SocialLoginRequest) returns (SocialLoginResponse);
+
+  // 프로필
+  rpc GetProfile (GetProfileRequest) returns (GetProfileResponse);
+  rpc UpdateProfile (UpdateProfileRequest) returns (UpdateProfileResponse);
+  rpc ChangePassword (ChangePasswordRequest) returns (ChangePasswordResponse);
+  rpc UpdateAvatar (UpdateAvatarRequest) returns (UpdateAvatarResponse);
+}
