@@ -1,0 +1,38 @@
+# docker-compose.yml
+version: "3"
+
+services:
+  
+  # 1. User Service
+  usersvc:
+    build: 
+      context: .
+      dockerfile: cmd/usersvc/Dockerfile
+    ports:
+      - "50051:50051"
+    environment:
+      DATABASE_URL: "postgresql://postgres.ldruldvbuiuaxkgfyied:gdgoc001%230@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+
+
+    networks:
+      - my-networks
+
+  # 2. Chat Service
+  chatsvc:
+    depends_on:
+      - usersvc
+    build:
+      context: .
+      dockerfile: cmd/chatsvc/Dockerfile
+
+    ports:
+      - "50052:50052" 
+    
+    environment:
+      DATABASE_URL: "postgresql://postgres.ldruldvbuiuaxkgfyied:gdgoc001%230@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+
+    networks:
+      - my-networks
+
+networks:
+  my-networks:
