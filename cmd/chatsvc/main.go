@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -21,7 +22,7 @@ type ChatServer struct {
 	chatpb.UnimplementedChatServiceServer
 	clients  map[string][]chatpb.ChatService_JoinChatServer
 	mu       sync.RWMutex
-	chatRepo user.ChatRepository // DB 저장소 의존성 주입
+	chatRepo user.ChatRepository
 }
 
 // NewChatServer: 생성자
@@ -32,9 +33,26 @@ func NewChatServer(repo user.ChatRepository) *ChatServer {
 	}
 }
 
-// JoinChat: 채팅방 참여 및 메시지 송수신 (핵심 로직)
+// [추가] GetRoomID: 두 유저 아이디를 받아 방 ID를 계산해 반환
+func (s *ChatServer) GetRoomID(ctx context.Context, req *chatpb.GetRoomIDRequest) (*chatpb.GetRoomIDResponse, error) {
+	myID := req.MyId
+	otherID := req.OtherId
+
+	if myID == "" || otherID == "" {
+		return nil, status.Error(codes.InvalidArgument, "ID cannot be empty")
+	}
+
+	// db 패키지의 GenerateRoomID 사용 (알파벳 정렬)
+	roomID := db.GenerateRoomID(myID, otherID)
+
+	return &chatpb.GetRoomIDResponse{
+		RoomId: roomID,
+	}, nil
+}
+
+// JoinChat: 채팅방 참여 및 메시지 송수신
 func (s *ChatServer) JoinChat(stream chatpb.ChatService_JoinChatServer) error {
-	// 1. 초기 메시지 수신 (방 정보 및 유저명)
+	// 1. 초기 메시지 수신
 	initialMsg, err := stream.Recv()
 	if err != nil {
 		log.Printf("초기 메시지 수신 실패: %v", err)
@@ -48,11 +66,22 @@ func (s *ChatServer) JoinChat(stream chatpb.ChatService_JoinChatServer) error {
 		return status.Error(codes.InvalidArgument, "유저명이 비어 있음")
 	}
 
+	// [추가] 1.5 DB에 실제 유저가 존재하는지 확인
+	exists, err := s.chatRepo.UserExists(stream.Context(), initialMsg.Username)
+	if err != nil {
+		log.Printf("DB Error: 유저 확인 실패: %v", err)
+		// 에러가 나도 일단 진행할지, 막을지 결정. 여기서는 로그만 남기고 진행하거나 에러 리턴 가능
+	}
+	if !exists {
+		log.Printf("경고: 존재하지 않는 유저(%s)가 접속을 시도했습니다.", initialMsg.Username)
+		return status.Errorf(codes.Unauthenticated, "User '%s' does not exist in database", initialMsg.Username)
+	}
+
 	roomID := initialMsg.Roomid
 	userName := initialMsg.Username
-	senderID := fmt.Sprintf("TEMP_USER_%s", userName) // 임시 ID
+	senderID := fmt.Sprintf("TEMP_USER_%s", userName)
 
-	// 2. DB 로직: 방 존재 확인 및 생성
+	// 2. 방 존재 확인 및 생성
 	parts := strings.Split(roomID, "_")
 	if len(parts) == 2 {
 		user1ID, user2ID := parts[0], parts[1]
@@ -90,7 +119,6 @@ func (s *ChatServer) JoinChat(stream chatpb.ChatService_JoinChatServer) error {
 	// 5. 연결 종료 시 정리 (Defer)
 	defer func() {
 		s.mu.Lock()
-		// 현재 방의 클라이언트 목록에서 나가는 사람 제거
 		roomClients := s.clients[roomID]
 		var updatedClients []chatpb.ChatService_JoinChatServer
 		for _, client := range roomClients {
@@ -115,65 +143,56 @@ func (s *ChatServer) JoinChat(stream chatpb.ChatService_JoinChatServer) error {
 	}
 	s.broadcastMessage(roomID, initialMsg)
 
-	// 7. 메시지 수신 루프 (채팅 시작)
+	// 7. 메시지 수신 루프
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
-			return nil // 정상 종료
+			return nil
 		}
 		if err != nil {
 			log.Printf("연결 오류 (%s): %v", userName, err)
 			return err
 		}
 
-		// 빈 메시지 무시
 		if msg.Message == "" {
 			continue
 		}
 
 		log.Printf("[%s] %s: %s", msg.Roomid, msg.Username, msg.Message)
 
-		// DB 저장
 		if err := s.chatRepo.SaveMessage(stream.Context(), msg.Roomid, senderID, msg.Username, msg.Message); err != nil {
 			log.Printf("DB 저장 실패(대화): %v", err)
 		}
 
-		// 다른 사람들에게 전송
 		s.broadcastMessage(msg.Roomid, msg)
 	}
 }
 
-// broadcastMessage: 방에 있는 모든 사람에게 메시지 전송
 func (s *ChatServer) broadcastMessage(roomID string, msg *chatpb.ChatMessage) {
 	s.mu.RLock()
 	clients := s.clients[roomID]
 	s.mu.RUnlock()
 
 	for _, client := range clients {
-		// 에러가 나도 일단 다음 사람에게 전송 시도
 		if err := client.Send(msg); err != nil {
 			log.Printf("브로드캐스트 전송 실패: %v", err)
 		}
 	}
 }
 
-// main: 서버 실행
 func main() {
-	// 1. DB 연결
 	db.Init()
 	defer db.Pool.Close()
 
-	// 2. Repository 생성
 	chatRepo := user.NewChatRepository(db.Pool)
 
-	// 3. gRPC 서버 설정
 	lis, err := net.Listen("tcp", ":50052")
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
 
 	grpcServer := grpc.NewServer()
-	chatServer := NewChatServer(chatRepo) // DB Repo 주입
+	chatServer := NewChatServer(chatRepo)
 
 	chatpb.RegisterChatServiceServer(grpcServer, chatServer)
 

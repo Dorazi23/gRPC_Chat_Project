@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // MessageRecord는 DB에서 조회한 메시지 레코드 구조체입니다.
-// 이 구조체는 chatpb.ChatMessage와 1:1 대응됩니다.
 type MessageRecord struct {
 	RoomID         string
 	SenderID       string
@@ -31,6 +31,9 @@ type ChatRepository interface {
 
 	// 특정 방의 과거 메시지들을 조회합니다. (최신 순)
 	GetMessagesByRoomID(ctx context.Context, roomID string, limit int) ([]*MessageRecord, error)
+
+	// [추가] 유저가 실제 존재하는지 확인합니다.
+	UserExists(ctx context.Context, username string) (bool, error)
 }
 
 type chatPostgresRepository struct {
@@ -94,10 +97,9 @@ func (r *chatPostgresRepository) GetMessagesByRoomID(ctx context.Context, roomID
 	var records []*MessageRecord
 	for rows.Next() {
 		record := &MessageRecord{}
-		// Scan 순서는 쿼리의 SELECT 순서와 일치해야 합니다.
 		err := rows.Scan(
 			&record.RoomID,
-			&record.SenderID, // DB에 저장된 sender_id를 그대로 읽어옵니다.
+			&record.SenderID,
 			&record.Username,
 			&record.MessageContent,
 			&record.SentAt,
@@ -113,4 +115,18 @@ func (r *chatPostgresRepository) GetMessagesByRoomID(ctx context.Context, roomID
 	}
 
 	return records, nil
+}
+
+// [추가] UserExists 구현
+func (r *chatPostgresRepository) UserExists(ctx context.Context, username string) (bool, error) {
+	const q = `SELECT 1 FROM users WHERE username = $1 LIMIT 1`
+	var dummy int
+	err := r.db.QueryRow(ctx, q, username).Scan(&dummy)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil // 유저 없음
+		}
+		return false, err // DB 에러
+	}
+	return true, nil // 유저 존재함
 }
