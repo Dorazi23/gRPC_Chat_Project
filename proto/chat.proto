@@ -8,11 +8,25 @@ option go_package = "github.com/Dorazi23/gRPC_Chat_Project/pkg/chatpb;chatpb";
 message ChatMessage {
   string roomid = 1;    // 채팅방 ID
   string username = 2;  // 사용자 이름
-  string message = 3;    // 메시지 내용
+  string message = 3;   // 메시지 내용
+}
+
+// [추가] 방 ID 요청 메시지
+message GetRoomIDRequest {
+  string my_id = 1;     // 내 아이디
+  string other_id = 2;  // 대화할 상대방 아이디
+}
+
+// [추가] 방 ID 응답 메시지
+message GetRoomIDResponse {
+  string room_id = 1;   // 계산된 방 ID (예: hun_min)
 }
 
 // 채팅 서비스 정의
-// 양방향 스트리밍 RPC: 클라이언트가 stream으로 메시지를 보내고 서버도 stream으로 메시지를 응답
 service ChatService {
+  // 양방향 스트리밍 RPC
   rpc JoinChat(stream ChatMessage) returns (stream ChatMessage);
+
+  // [추가] 방 ID 발급 API
+  rpc GetRoomID(GetRoomIDRequest) returns (GetRoomIDResponse);
 }
