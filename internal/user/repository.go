@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -32,8 +30,11 @@ type ChatRepository interface {
 	// 특정 방의 과거 메시지들을 조회합니다. (최신 순)
 	GetMessagesByRoomID(ctx context.Context, roomID string, limit int) ([]*MessageRecord, error)
 
-	// [추가] 유저가 실제 존재하는지 확인합니다.
+	// 유저가 실제 존재하는지 확인합니다.
 	UserExists(ctx context.Context, username string) (bool, error)
+
+	// [추가] 유저의 UUID와 생성일시(가입순서 판단용)를 조회합니다.
+	GetUserInfo(ctx context.Context, username string) (string, time.Time, error)
 }
 
 type chatPostgresRepository struct {
@@ -47,19 +48,15 @@ func NewChatRepository(dbPool *pgxpool.Pool) ChatRepository {
 
 // EnsureRoomExists: rooms 테이블에 room_id가 없으면 삽입합니다.
 func (r *chatPostgresRepository) EnsureRoomExists(ctx context.Context, roomID, user1ID, user2ID string) error {
-	ids := []string{user1ID, user2ID}
-	sort.Strings(ids)
-
-	expectedRoomID := strings.Join(ids, "_")
-	if roomID != expectedRoomID {
-		return errors.New("roomID format mismatch: expected sorted user IDs joined by '_'")
-	}
+	// [수정] 기존의 roomID 포맷 검사(알파벳 순서, _ 포함 여부 등) 로직을 삭제했습니다.
+	// 이제 6글자 UUID 조합 ID도 허용합니다.
 
 	const q = `
         INSERT INTO rooms (room_id, user1_id, user2_id) VALUES ($1, $2, $3)
         ON CONFLICT (room_id) DO NOTHING;
     `
-	_, err := r.db.Exec(ctx, q, roomID, ids[0], ids[1])
+	// userIDs 정렬 로직도 GetRoomID에서 처리하므로 여기선 그대로 저장
+	_, err := r.db.Exec(ctx, q, roomID, user1ID, user2ID)
 	if err != nil {
 		return fmt.Errorf("failed to ensure chat room existence: %w", err)
 	}
@@ -117,7 +114,7 @@ func (r *chatPostgresRepository) GetMessagesByRoomID(ctx context.Context, roomID
 	return records, nil
 }
 
-// [추가] UserExists 구현
+// UserExists 구현
 func (r *chatPostgresRepository) UserExists(ctx context.Context, username string) (bool, error) {
 	const q = `SELECT 1 FROM users WHERE username = $1 LIMIT 1`
 	var dummy int
@@ -129,4 +126,17 @@ func (r *chatPostgresRepository) UserExists(ctx context.Context, username string
 		return false, err // DB 에러
 	}
 	return true, nil // 유저 존재함
+}
+
+// [추가] GetUserInfo 구현
+func (r *chatPostgresRepository) GetUserInfo(ctx context.Context, username string) (string, time.Time, error) {
+	const q = `SELECT id, created_at FROM users WHERE username = $1`
+	var id string
+	var createdAt time.Time
+
+	err := r.db.QueryRow(ctx, q, username).Scan(&id, &createdAt)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return id, createdAt, nil
 }

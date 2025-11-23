@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"strings"
 	"sync"
 
 	"github.com/Dorazi23/gRPC_Chat_Project/internal/db"
@@ -33,7 +32,7 @@ func NewChatServer(repo user.ChatRepository) *ChatServer {
 	}
 }
 
-// [추가] GetRoomID: 두 유저 아이디를 받아 방 ID를 계산해 반환
+// [수정] GetRoomID: UUID 앞 3글자를 따서 방 ID 생성 + 방 DB 생성까지 처리
 func (s *ChatServer) GetRoomID(ctx context.Context, req *chatpb.GetRoomIDRequest) (*chatpb.GetRoomIDResponse, error) {
 	myID := req.MyId
 	otherID := req.OtherId
@@ -42,8 +41,40 @@ func (s *ChatServer) GetRoomID(ctx context.Context, req *chatpb.GetRoomIDRequest
 		return nil, status.Error(codes.InvalidArgument, "ID cannot be empty")
 	}
 
-	// db 패키지의 GenerateRoomID 사용 (알파벳 정렬)
-	roomID := db.GenerateRoomID(myID, otherID)
+	// 1. 두 유저의 UUID와 가입일(CreatedAt) 조회
+	uuid1, created1, err := s.chatRepo.GetUserInfo(ctx, myID)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "failed to find user %s: %v", myID, err)
+	}
+	uuid2, created2, err := s.chatRepo.GetUserInfo(ctx, otherID)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "failed to find user %s: %v", otherID, err)
+	}
+
+	// 2. 가입 순서(테이블 저장 순서)대로 정렬
+	// created1이 더 빠르면(옛날이면) user1이 앞
+	var firstUUID, secondUUID string
+	// 만약 가입 시간이 완전히 똑같으면(거의 없겠지만) UUID 문자열로 2차 정렬
+	if created1.Before(created2) || (created1.Equal(created2) && uuid1 < uuid2) {
+		firstUUID = uuid1
+		secondUUID = uuid2
+	} else {
+		firstUUID = uuid2
+		secondUUID = uuid1
+	}
+
+	// 3. UUID 앞 3글자씩 잘라서 합치기 (총 6글자)
+	if len(firstUUID) < 3 || len(secondUUID) < 3 {
+		return nil, status.Error(codes.Internal, "UUID is too short")
+	}
+	roomID := firstUUID[:3] + secondUUID[:3]
+
+	// 4. [중요] 여기서 DB에 방을 미리 만들어 둡니다.
+	// JoinChat에서는 roomID만으로는 누가 참여자인지 알 수 없으므로, 여기서 확실히 만들어야 합니다.
+	err = s.chatRepo.EnsureRoomExists(ctx, roomID, myID, otherID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create room: %v", err)
+	}
 
 	return &chatpb.GetRoomIDResponse{
 		RoomId: roomID,
@@ -66,11 +97,10 @@ func (s *ChatServer) JoinChat(stream chatpb.ChatService_JoinChatServer) error {
 		return status.Error(codes.InvalidArgument, "유저명이 비어 있음")
 	}
 
-	// [추가] 1.5 DB에 실제 유저가 존재하는지 확인
+	// 1.5 DB에 실제 유저가 존재하는지 확인
 	exists, err := s.chatRepo.UserExists(stream.Context(), initialMsg.Username)
 	if err != nil {
 		log.Printf("DB Error: 유저 확인 실패: %v", err)
-		// 에러가 나도 일단 진행할지, 막을지 결정. 여기서는 로그만 남기고 진행하거나 에러 리턴 가능
 	}
 	if !exists {
 		log.Printf("경고: 존재하지 않는 유저(%s)가 접속을 시도했습니다.", initialMsg.Username)
@@ -81,14 +111,11 @@ func (s *ChatServer) JoinChat(stream chatpb.ChatService_JoinChatServer) error {
 	userName := initialMsg.Username
 	senderID := fmt.Sprintf("TEMP_USER_%s", userName)
 
-	// 2. 방 존재 확인 및 생성
-	parts := strings.Split(roomID, "_")
-	if len(parts) == 2 {
-		user1ID, user2ID := parts[0], parts[1]
-		if err := s.chatRepo.EnsureRoomExists(stream.Context(), roomID, user1ID, user2ID); err != nil {
-			log.Printf("DB Error: 방 생성/확인 실패 (%s): %v", roomID, err)
-		}
-	}
+	// [수정] 2. 방 존재 확인 로직 간소화
+	// 기존에는 여기서 EnsureRoomExists를 호출했지만, 이제는 roomID가 6글자라
+	// 여기서 누구랑 누구 방인지 유추할 수 없습니다.
+	// 따라서 GetRoomID에서 이미 방이 만들어졌다고 가정하고 진행합니다.
+	// (만약 방이 없으면 아래 SaveMessage에서 Foreign Key 에러가 나면서 자연스럽게 실패합니다)
 
 	// 3. 과거 메시지 로드 및 전송
 	log.Printf("방(%s)의 이전 대화 내용을 불러옵니다...", roomID)
