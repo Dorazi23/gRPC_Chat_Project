@@ -123,7 +123,19 @@ message UpdateAvatarResponse {
   User user = 1;
 }
 
-// ====== 서비스 정의 (명세같은 역할)======
+// ====== 검색 ======
+message SearchUsersRequest {
+  string query = 1;   // username 또는 nickname 일부
+  int32 limit = 2;    // 한 번에 몇 명까지 가져올지 (옵션, 기본 20)
+  int32 offset = 3;   // 페이지네이션용 (옵션)
+}
+
+message SearchUsersResponse {
+  repeated User users = 1;  // 검색 결과 목록
+}
+
+
+// ====== 서비스 정의 (명세)======
 service UserService {
   // 중복/인증
   rpc CheckUsername (CheckUsernameRequest) returns (CheckUsernameResponse);
@@ -141,4 +153,8 @@ service UserService {
   rpc UpdateProfile (UpdateProfileRequest) returns (UpdateProfileResponse);
   rpc ChangePassword (ChangePasswordRequest) returns (ChangePasswordResponse);
   rpc UpdateAvatar (UpdateAvatarRequest) returns (UpdateAvatarResponse);
+
+  // 유저 검색(username 또는 nickname)
+  rpc SearchUsers (SearchUsersRequest) returns (SearchUsersResponse);
+
 }
