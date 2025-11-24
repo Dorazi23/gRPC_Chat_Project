@@ -42,7 +42,7 @@ func Init() {
 	}
 
 	// 테스트 연결
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	err = Pool.Ping(ctx)
