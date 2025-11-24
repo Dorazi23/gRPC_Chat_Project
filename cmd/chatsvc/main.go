@@ -32,7 +32,7 @@ func NewChatServer(repo user.ChatRepository) *ChatServer {
 	}
 }
 
-// [수정] GetRoomID: UUID 앞 3글자를 따서 방 ID 생성 + 방 DB 생성까지 처리
+// GetRoomID: UUID 앞 3글자를 따서 방 ID 생성 + 방 DB 생성까지 처리
 func (s *ChatServer) GetRoomID(ctx context.Context, req *chatpb.GetRoomIDRequest) (*chatpb.GetRoomIDResponse, error) {
 	myID := req.MyId
 	otherID := req.OtherId
@@ -69,8 +69,7 @@ func (s *ChatServer) GetRoomID(ctx context.Context, req *chatpb.GetRoomIDRequest
 	}
 	roomID := firstUUID[:3] + secondUUID[:3]
 
-	// 4. [중요] 여기서 DB에 방을 미리 만들어 둡니다.
-	// JoinChat에서는 roomID만으로는 누가 참여자인지 알 수 없으므로, 여기서 확실히 만들어야 합니다.
+	// 4. 여기서 DB에 방을 미리 만들어 둡니다.
 	err = s.chatRepo.EnsureRoomExists(ctx, roomID, myID, otherID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create room: %v", err)
@@ -78,6 +77,42 @@ func (s *ChatServer) GetRoomID(ctx context.Context, req *chatpb.GetRoomIDRequest
 
 	return &chatpb.GetRoomIDResponse{
 		RoomId: roomID,
+	}, nil
+}
+
+// [추가] GetMyRooms: 내 채팅방 목록 조회
+func (s *ChatServer) GetMyRooms(ctx context.Context, req *chatpb.GetMyRoomsRequest) (*chatpb.GetMyRoomsResponse, error) {
+	myID := req.UserId
+	if myID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	// 1. DB에서 내가 속한 방 목록 가져오기
+	rawRooms, err := s.chatRepo.GetRoomsByUser(ctx, myID)
+	if err != nil {
+		log.Printf("DB Error: 방 목록 조회 실패: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get rooms")
+	}
+
+	// 2. 응답 데이터 만들기
+	var responseRooms []*chatpb.ChatRoomInfo
+	for _, r := range rawRooms {
+		// 상대방 아이디 찾기 (둘 중 내가 아닌 사람이 상대방)
+		var otherID string
+		if r.User1ID == myID {
+			otherID = r.User2ID
+		} else {
+			otherID = r.User1ID
+		}
+
+		responseRooms = append(responseRooms, &chatpb.ChatRoomInfo{
+			RoomId:      r.RoomID,
+			OtherUserId: otherID,
+		})
+	}
+
+	return &chatpb.GetMyRoomsResponse{
+		Rooms: responseRooms,
 	}, nil
 }
 
@@ -110,12 +145,6 @@ func (s *ChatServer) JoinChat(stream chatpb.ChatService_JoinChatServer) error {
 	roomID := initialMsg.Roomid
 	userName := initialMsg.Username
 	senderID := fmt.Sprintf("TEMP_USER_%s", userName)
-
-	// [수정] 2. 방 존재 확인 로직 간소화
-	// 기존에는 여기서 EnsureRoomExists를 호출했지만, 이제는 roomID가 6글자라
-	// 여기서 누구랑 누구 방인지 유추할 수 없습니다.
-	// 따라서 GetRoomID에서 이미 방이 만들어졌다고 가정하고 진행합니다.
-	// (만약 방이 없으면 아래 SaveMessage에서 Foreign Key 에러가 나면서 자연스럽게 실패합니다)
 
 	// 3. 과거 메시지 로드 및 전송
 	log.Printf("방(%s)의 이전 대화 내용을 불러옵니다...", roomID)

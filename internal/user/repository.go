@@ -19,6 +19,13 @@ type MessageRecord struct {
 	SentAt         time.Time
 }
 
+// [추가] DB에서 가져올 방 정보 구조체
+type RoomInfoRecord struct {
+	RoomID  string
+	User1ID string
+	User2ID string
+}
+
 // ChatRepository는 채팅 데이터 영속성 처리를 위한 인터페이스입니다.
 type ChatRepository interface {
 	// rooms 테이블에 방이 존재하는지 확인하고, 없으면 생성합니다.
@@ -33,8 +40,11 @@ type ChatRepository interface {
 	// 유저가 실제 존재하는지 확인합니다.
 	UserExists(ctx context.Context, username string) (bool, error)
 
-	// [추가] 유저의 UUID와 생성일시(가입순서 판단용)를 조회합니다.
+	// 유저의 UUID와 생성일시(가입순서 판단용)를 조회합니다.
 	GetUserInfo(ctx context.Context, username string) (string, time.Time, error)
+
+	// [추가] 내가 속한 방 목록 조회
+	GetRoomsByUser(ctx context.Context, userID string) ([]*RoomInfoRecord, error)
 }
 
 type chatPostgresRepository struct {
@@ -48,14 +58,11 @@ func NewChatRepository(dbPool *pgxpool.Pool) ChatRepository {
 
 // EnsureRoomExists: rooms 테이블에 room_id가 없으면 삽입합니다.
 func (r *chatPostgresRepository) EnsureRoomExists(ctx context.Context, roomID, user1ID, user2ID string) error {
-	// [수정] 기존의 roomID 포맷 검사(알파벳 순서, _ 포함 여부 등) 로직을 삭제했습니다.
-	// 이제 6글자 UUID 조합 ID도 허용합니다.
-
+	// 6글자 UUID 조합 ID 허용 (포맷 검사 로직 삭제됨)
 	const q = `
         INSERT INTO rooms (room_id, user1_id, user2_id) VALUES ($1, $2, $3)
         ON CONFLICT (room_id) DO NOTHING;
     `
-	// userIDs 정렬 로직도 GetRoomID에서 처리하므로 여기선 그대로 저장
 	_, err := r.db.Exec(ctx, q, roomID, user1ID, user2ID)
 	if err != nil {
 		return fmt.Errorf("failed to ensure chat room existence: %w", err)
@@ -128,7 +135,7 @@ func (r *chatPostgresRepository) UserExists(ctx context.Context, username string
 	return true, nil // 유저 존재함
 }
 
-// [추가] GetUserInfo 구현
+// GetUserInfo 구현
 func (r *chatPostgresRepository) GetUserInfo(ctx context.Context, username string) (string, time.Time, error) {
 	const q = `SELECT id, created_at FROM users WHERE username = $1`
 	var id string
@@ -139,4 +146,31 @@ func (r *chatPostgresRepository) GetUserInfo(ctx context.Context, username strin
 		return "", time.Time{}, err
 	}
 	return id, createdAt, nil
+}
+
+// [추가] GetRoomsByUser 구현
+func (r *chatPostgresRepository) GetRoomsByUser(ctx context.Context, userID string) ([]*RoomInfoRecord, error) {
+	// 내가 user1이거나 user2인 모든 방을 찾는다. (최신 생성순)
+	const q = `
+        SELECT room_id, user1_id, user2_id
+        FROM rooms
+        WHERE user1_id = $1 OR user2_id = $1
+        ORDER BY created_at DESC
+    `
+
+	rows, err := r.db.Query(ctx, q, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query rooms: %w", err)
+	}
+	defer rows.Close()
+
+	var rooms []*RoomInfoRecord
+	for rows.Next() {
+		room := &RoomInfoRecord{}
+		if err := rows.Scan(&room.RoomID, &room.User1ID, &room.User2ID); err != nil {
+			return nil, err
+		}
+		rooms = append(rooms, room)
+	}
+	return rooms, nil
 }

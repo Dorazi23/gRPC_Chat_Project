@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ChatService_JoinChat_FullMethodName  = "/chat.v1.ChatService/JoinChat"
-	ChatService_GetRoomID_FullMethodName = "/chat.v1.ChatService/GetRoomID"
+	ChatService_JoinChat_FullMethodName   = "/chat.v1.ChatService/JoinChat"
+	ChatService_GetRoomID_FullMethodName  = "/chat.v1.ChatService/GetRoomID"
+	ChatService_GetMyRooms_FullMethodName = "/chat.v1.ChatService/GetMyRooms"
 )
 
 // ChatServiceClient is the client API for ChatService service.
@@ -31,8 +32,10 @@ const (
 type ChatServiceClient interface {
 	// 양방향 스트리밍 RPC
 	JoinChat(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ChatMessage, ChatMessage], error)
-	// [추가] 방 ID 발급 API
+	// 방 ID 발급 API
 	GetRoomID(ctx context.Context, in *GetRoomIDRequest, opts ...grpc.CallOption) (*GetRoomIDResponse, error)
+	// [추가] 내 채팅방 목록 조회 API
+	GetMyRooms(ctx context.Context, in *GetMyRoomsRequest, opts ...grpc.CallOption) (*GetMyRoomsResponse, error)
 }
 
 type chatServiceClient struct {
@@ -66,6 +69,16 @@ func (c *chatServiceClient) GetRoomID(ctx context.Context, in *GetRoomIDRequest,
 	return out, nil
 }
 
+func (c *chatServiceClient) GetMyRooms(ctx context.Context, in *GetMyRoomsRequest, opts ...grpc.CallOption) (*GetMyRoomsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMyRoomsResponse)
+	err := c.cc.Invoke(ctx, ChatService_GetMyRooms_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ChatServiceServer is the server API for ChatService service.
 // All implementations must embed UnimplementedChatServiceServer
 // for forward compatibility.
@@ -74,8 +87,10 @@ func (c *chatServiceClient) GetRoomID(ctx context.Context, in *GetRoomIDRequest,
 type ChatServiceServer interface {
 	// 양방향 스트리밍 RPC
 	JoinChat(grpc.BidiStreamingServer[ChatMessage, ChatMessage]) error
-	// [추가] 방 ID 발급 API
+	// 방 ID 발급 API
 	GetRoomID(context.Context, *GetRoomIDRequest) (*GetRoomIDResponse, error)
+	// [추가] 내 채팅방 목록 조회 API
+	GetMyRooms(context.Context, *GetMyRoomsRequest) (*GetMyRoomsResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -91,6 +106,9 @@ func (UnimplementedChatServiceServer) JoinChat(grpc.BidiStreamingServer[ChatMess
 }
 func (UnimplementedChatServiceServer) GetRoomID(context.Context, *GetRoomIDRequest) (*GetRoomIDResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRoomID not implemented")
+}
+func (UnimplementedChatServiceServer) GetMyRooms(context.Context, *GetMyRoomsRequest) (*GetMyRoomsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMyRooms not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 func (UnimplementedChatServiceServer) testEmbeddedByValue()                     {}
@@ -138,6 +156,24 @@ func _ChatService_GetRoomID_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ChatService_GetMyRooms_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMyRoomsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).GetMyRooms(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_GetMyRooms_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).GetMyRooms(ctx, req.(*GetMyRoomsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -148,6 +184,10 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRoomID",
 			Handler:    _ChatService_GetRoomID_Handler,
+		},
+		{
+			MethodName: "GetMyRooms",
+			Handler:    _ChatService_GetMyRooms_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
