@@ -1264,6 +1264,111 @@ func (x *UpdateAvatarResponse) GetUser() *User {
 	return nil
 }
 
+// ====== 검색 ======
+type SearchUsersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`    // username 또는 nickname 일부
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`   // 한 번에 몇 명까지 가져올지 (옵션, 기본 20)
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"` // 페이지네이션용 (옵션)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchUsersRequest) Reset() {
+	*x = SearchUsersRequest{}
+	mi := &file_user_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchUsersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchUsersRequest) ProtoMessage() {}
+
+func (x *SearchUsersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchUsersRequest.ProtoReflect.Descriptor instead.
+func (*SearchUsersRequest) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *SearchUsersRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *SearchUsersRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *SearchUsersRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type SearchUsersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"` // 검색 결과 목록
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchUsersResponse) Reset() {
+	*x = SearchUsersResponse{}
+	mi := &file_user_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchUsersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchUsersResponse) ProtoMessage() {}
+
+func (x *SearchUsersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchUsersResponse.ProtoReflect.Descriptor instead.
+func (*SearchUsersResponse) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *SearchUsersResponse) GetUsers() []*User {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
 var File_user_proto protoreflect.FileDescriptor
 
 const file_user_proto_rawDesc = "" +
@@ -1340,11 +1445,17 @@ const file_user_proto_rawDesc = "" +
 	"\n" +
 	"avatar_url\x18\x01 \x01(\tR\tavatarUrl\"9\n" +
 	"\x14UpdateAvatarResponse\x12!\n" +
-	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user*g\n" +
+	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\"X\n" +
+	"\x12SearchUsersRequest\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\":\n" +
+	"\x13SearchUsersResponse\x12#\n" +
+	"\x05users\x18\x01 \x03(\v2\r.user.v1.UserR\x05users*g\n" +
 	"\x0eSocialProvider\x12\x1f\n" +
 	"\x1bSOCIAL_PROVIDER_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SOCIAL_PROVIDER_KAKAO\x10\x01\x12\x19\n" +
-	"\x15SOCIAL_PROVIDER_NAVER\x10\x022\xd3\x06\n" +
+	"\x15SOCIAL_PROVIDER_NAVER\x10\x022\x9d\a\n" +
 	"\vUserService\x12N\n" +
 	"\rCheckUsername\x12\x1d.user.v1.CheckUsernameRequest\x1a\x1e.user.v1.CheckUsernameResponse\x12E\n" +
 	"\n" +
@@ -1358,7 +1469,8 @@ const file_user_proto_rawDesc = "" +
 	"GetProfile\x12\x1a.user.v1.GetProfileRequest\x1a\x1b.user.v1.GetProfileResponse\x12N\n" +
 	"\rUpdateProfile\x12\x1d.user.v1.UpdateProfileRequest\x1a\x1e.user.v1.UpdateProfileResponse\x12Q\n" +
 	"\x0eChangePassword\x12\x1e.user.v1.ChangePasswordRequest\x1a\x1f.user.v1.ChangePasswordResponse\x12K\n" +
-	"\fUpdateAvatar\x12\x1c.user.v1.UpdateAvatarRequest\x1a\x1d.user.v1.UpdateAvatarResponseB9Z7github.com/Dorazi23/gRPC_Chat_Project/pkg/userpb;userpbb\x06proto3"
+	"\fUpdateAvatar\x12\x1c.user.v1.UpdateAvatarRequest\x1a\x1d.user.v1.UpdateAvatarResponse\x12H\n" +
+	"\vSearchUsers\x12\x1b.user.v1.SearchUsersRequest\x1a\x1c.user.v1.SearchUsersResponseB9Z7github.com/Dorazi23/gRPC_Chat_Project/pkg/userpb;userpbb\x06proto3"
 
 var (
 	file_user_proto_rawDescOnce sync.Once
@@ -1373,7 +1485,7 @@ func file_user_proto_rawDescGZIP() []byte {
 }
 
 var file_user_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_user_proto_goTypes = []any{
 	(SocialProvider)(0),                      // 0: user.v1.SocialProvider
 	(*User)(nil),                             // 1: user.v1.User
@@ -1399,6 +1511,8 @@ var file_user_proto_goTypes = []any{
 	(*ChangePasswordResponse)(nil),           // 21: user.v1.ChangePasswordResponse
 	(*UpdateAvatarRequest)(nil),              // 22: user.v1.UpdateAvatarRequest
 	(*UpdateAvatarResponse)(nil),             // 23: user.v1.UpdateAvatarResponse
+	(*SearchUsersRequest)(nil),               // 24: user.v1.SearchUsersRequest
+	(*SearchUsersResponse)(nil),              // 25: user.v1.SearchUsersResponse
 }
 var file_user_proto_depIdxs = []int32{
 	1,  // 0: user.v1.SignUpResponse.user:type_name -> user.v1.User
@@ -1408,33 +1522,36 @@ var file_user_proto_depIdxs = []int32{
 	1,  // 4: user.v1.GetProfileResponse.user:type_name -> user.v1.User
 	1,  // 5: user.v1.UpdateProfileResponse.user:type_name -> user.v1.User
 	1,  // 6: user.v1.UpdateAvatarResponse.user:type_name -> user.v1.User
-	2,  // 7: user.v1.UserService.CheckUsername:input_type -> user.v1.CheckUsernameRequest
-	4,  // 8: user.v1.UserService.CheckEmail:input_type -> user.v1.CheckEmailRequest
-	6,  // 9: user.v1.UserService.RequestPhoneVerification:input_type -> user.v1.RequestPhoneVerificationRequest
-	8,  // 10: user.v1.UserService.VerifyPhone:input_type -> user.v1.VerifyPhoneRequest
-	10, // 11: user.v1.UserService.SignUp:input_type -> user.v1.SignUpRequest
-	12, // 12: user.v1.UserService.Login:input_type -> user.v1.LoginRequest
-	14, // 13: user.v1.UserService.SocialLogin:input_type -> user.v1.SocialLoginRequest
-	16, // 14: user.v1.UserService.GetProfile:input_type -> user.v1.GetProfileRequest
-	18, // 15: user.v1.UserService.UpdateProfile:input_type -> user.v1.UpdateProfileRequest
-	20, // 16: user.v1.UserService.ChangePassword:input_type -> user.v1.ChangePasswordRequest
-	22, // 17: user.v1.UserService.UpdateAvatar:input_type -> user.v1.UpdateAvatarRequest
-	3,  // 18: user.v1.UserService.CheckUsername:output_type -> user.v1.CheckUsernameResponse
-	5,  // 19: user.v1.UserService.CheckEmail:output_type -> user.v1.CheckEmailResponse
-	7,  // 20: user.v1.UserService.RequestPhoneVerification:output_type -> user.v1.RequestPhoneVerificationResponse
-	9,  // 21: user.v1.UserService.VerifyPhone:output_type -> user.v1.VerifyPhoneResponse
-	11, // 22: user.v1.UserService.SignUp:output_type -> user.v1.SignUpResponse
-	13, // 23: user.v1.UserService.Login:output_type -> user.v1.LoginResponse
-	15, // 24: user.v1.UserService.SocialLogin:output_type -> user.v1.SocialLoginResponse
-	17, // 25: user.v1.UserService.GetProfile:output_type -> user.v1.GetProfileResponse
-	19, // 26: user.v1.UserService.UpdateProfile:output_type -> user.v1.UpdateProfileResponse
-	21, // 27: user.v1.UserService.ChangePassword:output_type -> user.v1.ChangePasswordResponse
-	23, // 28: user.v1.UserService.UpdateAvatar:output_type -> user.v1.UpdateAvatarResponse
-	18, // [18:29] is the sub-list for method output_type
-	7,  // [7:18] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	1,  // 7: user.v1.SearchUsersResponse.users:type_name -> user.v1.User
+	2,  // 8: user.v1.UserService.CheckUsername:input_type -> user.v1.CheckUsernameRequest
+	4,  // 9: user.v1.UserService.CheckEmail:input_type -> user.v1.CheckEmailRequest
+	6,  // 10: user.v1.UserService.RequestPhoneVerification:input_type -> user.v1.RequestPhoneVerificationRequest
+	8,  // 11: user.v1.UserService.VerifyPhone:input_type -> user.v1.VerifyPhoneRequest
+	10, // 12: user.v1.UserService.SignUp:input_type -> user.v1.SignUpRequest
+	12, // 13: user.v1.UserService.Login:input_type -> user.v1.LoginRequest
+	14, // 14: user.v1.UserService.SocialLogin:input_type -> user.v1.SocialLoginRequest
+	16, // 15: user.v1.UserService.GetProfile:input_type -> user.v1.GetProfileRequest
+	18, // 16: user.v1.UserService.UpdateProfile:input_type -> user.v1.UpdateProfileRequest
+	20, // 17: user.v1.UserService.ChangePassword:input_type -> user.v1.ChangePasswordRequest
+	22, // 18: user.v1.UserService.UpdateAvatar:input_type -> user.v1.UpdateAvatarRequest
+	24, // 19: user.v1.UserService.SearchUsers:input_type -> user.v1.SearchUsersRequest
+	3,  // 20: user.v1.UserService.CheckUsername:output_type -> user.v1.CheckUsernameResponse
+	5,  // 21: user.v1.UserService.CheckEmail:output_type -> user.v1.CheckEmailResponse
+	7,  // 22: user.v1.UserService.RequestPhoneVerification:output_type -> user.v1.RequestPhoneVerificationResponse
+	9,  // 23: user.v1.UserService.VerifyPhone:output_type -> user.v1.VerifyPhoneResponse
+	11, // 24: user.v1.UserService.SignUp:output_type -> user.v1.SignUpResponse
+	13, // 25: user.v1.UserService.Login:output_type -> user.v1.LoginResponse
+	15, // 26: user.v1.UserService.SocialLogin:output_type -> user.v1.SocialLoginResponse
+	17, // 27: user.v1.UserService.GetProfile:output_type -> user.v1.GetProfileResponse
+	19, // 28: user.v1.UserService.UpdateProfile:output_type -> user.v1.UpdateProfileResponse
+	21, // 29: user.v1.UserService.ChangePassword:output_type -> user.v1.ChangePasswordResponse
+	23, // 30: user.v1.UserService.UpdateAvatar:output_type -> user.v1.UpdateAvatarResponse
+	25, // 31: user.v1.UserService.SearchUsers:output_type -> user.v1.SearchUsersResponse
+	20, // [20:32] is the sub-list for method output_type
+	8,  // [8:20] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_user_proto_init() }
@@ -1448,7 +1565,7 @@ func file_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_proto_rawDesc), len(file_user_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

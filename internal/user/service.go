@@ -35,6 +35,8 @@ type Service interface {
 	UpdateProfile(ctx context.Context, userID, name, nickname, phone, email string) (*User, error)
 	ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error
 	UpdateAvatar(ctx context.Context, userID, avatarURL string) (*User, error)
+
+	SearchUsers(ctx context.Context, query string, limit, offset int32) ([]*User, error)
 }
 
 // ---------------------------
@@ -88,13 +90,13 @@ func (s *service) SignUp(ctx context.Context, username, name, phone, email, pass
 		nickname,
 	).Scan(
 		&u.ID,
-		&u.Username,
-		&u.Name,
+		&u.Username, //Id
+		&u.Name,     //실명
 		&u.Phone,
 		&u.PhoneVerified,
 		&u.Email,
 		&u.PasswordHash,
-		&u.Nickname,
+		&u.Nickname, //닉네임
 		&u.AvatarURL,
 		&u.CreatedAt,
 		&u.UpdatedAt,
@@ -115,10 +117,6 @@ func (s *service) SignUp(ctx context.Context, username, name, phone, email, pass
 
 	return &u, nil
 }
-
-// ----------------------
-// 아래 기능은 나중에 구현
-// ----------------------
 
 func (s *service) CheckUsername(ctx context.Context, username string) (bool, error) {
 	if username == "" {
@@ -379,4 +377,64 @@ func (s *service) UpdateAvatar(ctx context.Context, userID, avatarURL string) (*
 	}
 
 	return &u, nil
+}
+
+func (s *service) SearchUsers(ctx context.Context, query string, limit, offset int32) ([]*User, error) {
+	if query == "" {
+		return []*User{}, nil
+	}
+
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100 // 너무 크게 못 가져가게 제한
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	const q = `
+		SELECT id, username, name, phone, phone_verified,
+		       email, nickname, avatar_url, created_at
+		FROM users
+		WHERE username ILIKE $1
+		   OR nickname ILIKE $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	pattern := "%" + query + "%"
+
+	rows, err := s.db.Query(ctx, q, pattern, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*User
+
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(
+			&u.ID,
+			&u.Username,
+			&u.Name,
+			&u.Phone,
+			&u.PhoneVerified,
+			&u.Email,
+			&u.Nickname,
+			&u.AvatarURL,
+			&u.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		users = append(users, &u)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return users, nil
 }

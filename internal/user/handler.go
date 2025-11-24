@@ -235,3 +235,20 @@ func (h *Handler) UpdateAvatar(ctx context.Context, req *userpb.UpdateAvatarRequ
 		User: toProtoUser(u),
 	}, nil
 }
+
+func (h *Handler) SearchUsers(ctx context.Context, req *userpb.SearchUsersRequest) (*userpb.SearchUsersResponse, error) {
+	users, err := h.svc.SearchUsers(ctx, req.GetQuery(), req.GetLimit(), req.GetOffset())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to search users: %v", err)
+	}
+
+	resp := &userpb.SearchUsersResponse{
+		Users: make([]*userpb.User, 0, len(users)),
+	}
+
+	for _, u := range users {
+		resp.Users = append(resp.Users, toProtoUser(u))
+	}
+
+	return resp, nil
+}
