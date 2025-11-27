@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/Dorazi23/gRPC_Chat_Project/pkg/chatpb"
 	"google.golang.org/grpc"
@@ -14,8 +15,8 @@ import (
 )
 
 func main() {
-	// 서버와 연결
-	conn, err := grpc.Dial(":50052", grpc.WithInsecure())
+	// 서버 연결
+	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("gRPC 서버에 연결 실패: %v", err)
 	}
@@ -23,39 +24,54 @@ func main() {
 
 	client := chatpb.NewChatServiceClient(conn)
 
-	// 사용자 정보 입력 받기
-	var roomID, username string
-	fmt.Print("채팅방 ID를 입력하세요: ")
-	fmt.Scanln(&roomID)
-	fmt.Print("사용자 이름을 입력하세요: ")
-	fmt.Scanln(&username)
+	// [수정된 부분] 방 ID 대신, 대화 상대를 입력받음
+	var myUsername, otherUsername string
+	fmt.Print("내 사용자 이름(ID)을 입력하세요: ")
+	fmt.Scanln(&myUsername)
+	fmt.Print("대화할 상대방 이름(ID)을 입력하세요: ")
+	fmt.Scanln(&otherUsername)
 
-	// 채팅방에 입장하는 초기 메시지 설정
+	// [추가] 1. 서버에 방 ID 요청 (GetRoomID)
+	// 이 부분이 실행되려면 서버(chatsvc)도 GetRoomID가 구현된 최신 버전이어야 합니다.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.GetRoomID(ctx, &chatpb.GetRoomIDRequest{
+		MyId:    myUsername,
+		OtherId: otherUsername,
+	})
+	if err != nil {
+		log.Fatalf("방 ID를 가져오는데 실패했습니다: %v", err)
+	}
+
+	roomID := resp.RoomId
+	fmt.Printf("✅ 자동으로 방(%s)에 입장합니다.\n", roomID)
+
+	// 2. 채팅방 입장 (JoinChat)
 	initialMsg := &chatpb.ChatMessage{
 		Roomid:   roomID,
-		Username: username,
+		Username: myUsername,
 		Message:  "has joined the chat",
 	}
 
-	// gRPC 스트리밍 연결 시작
 	stream, err := client.JoinChat(context.Background())
 	if err != nil {
 		log.Fatalf("JoinChat 스트림 시작 실패: %v", err)
 	}
 
-	// 초기 메시지 서버에 전송
 	if err := stream.Send(initialMsg); err != nil {
 		log.Fatalf("초기 메시지 전송 실패: %v", err)
 	}
 
-	// 채팅방 참여 후 메시지 수신 및 전송
+	// 메시지 수신 및 전송 루프
 	go receiveMessages(stream)
 
-	// 메시지 입력 받아서 서버로 전송
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print("메시지를 입력하세요: ")
-		scanner.Scan()
+		fmt.Print("메시지 입력: ")
+		if !scanner.Scan() {
+			break
+		}
 		msg := scanner.Text()
 
 		if msg == "exit" {
@@ -63,10 +79,9 @@ func main() {
 			break
 		}
 
-		// 채팅 메시지 전송
 		err := stream.Send(&chatpb.ChatMessage{
 			Roomid:   roomID,
-			Username: username,
+			Username: myUsername,
 			Message:  msg,
 		})
 		if err != nil {
@@ -75,7 +90,6 @@ func main() {
 	}
 }
 
-// 메시지 수신하는 함수
 func receiveMessages(stream chatpb.ChatService_JoinChatClient) {
 	for {
 		msg, err := stream.Recv()
@@ -83,9 +97,10 @@ func receiveMessages(stream chatpb.ChatService_JoinChatClient) {
 			if status.Code(err) == codes.Canceled {
 				log.Println("채팅 스트림이 종료되었습니다.")
 			} else {
-				log.Printf("메시지 수신 실패: %v", err)
+				// 여기서 서버가 유저가 없다고 끊으면 에러가 출력됨
+				log.Printf("서버 연결 끊김: %v", err)
 			}
-			return
+			os.Exit(0) // 프로그램 종료
 		}
 		fmt.Printf("[%s] %s: %s\n", msg.Roomid, msg.Username, msg.Message)
 	}

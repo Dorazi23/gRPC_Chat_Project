@@ -33,6 +33,8 @@ services:
 
     networks:
       - my-networks
+    restart:
+      on-failure
 
 networks:
   my-networks:
