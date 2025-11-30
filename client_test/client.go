@@ -16,7 +16,7 @@ import (
 
 func main() {
 	// 서버 연결
-	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
+	conn, err := grpc.Dial("34.47.65.135:50052", grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("gRPC 서버에 연결 실패: %v", err)
 	}
